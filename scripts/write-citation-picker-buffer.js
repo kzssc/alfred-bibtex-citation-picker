@@ -156,75 +156,80 @@ function bibtexDecode(encodedStr) {
  * @return {BibtexEntry[]}
  */
 function bibtexParse(rawBibtexStr) {
-	const bibtexEntryArray = bibtexDecode(rawBibtexStr)
-		.split(/^@/m) // split by `@` from citekeys
-		.slice(1) // first element is header info before first entry
-		.reduce((/** @type {BibtexEntry[]} */ acc, rawEntryStr) => {
-			const [_, category, citekey, propertyStr] =
-				rawEntryStr.trim().match(/^(.*?){(.*?),(.*)}$/s) || [];
-			if (!category || !citekey || !propertyStr) return acc;
+	const decoded = bibtexDecode(rawBibtexStr);
+	const entries = decoded.split(/^@/m).slice(1);
+	const bibtexEntryArray = [];
 
-			const entry = new BibtexEntry();
-			entry.citekey = citekey.trim();
-			// INFO will use icons saved as as `./icons/{entry.icon}.png` in the
-			// workflow folder. This means adding icons does not require any extra
-			// code, just an addition of the an icon file named like the category
-			entry.icon = category.toLowerCase().trim();
+	for (const rawEntryStr of entries) {
+		const trimmed = rawEntryStr.trim();
+		const openBracePos = trimmed.indexOf("{");
+		if (openBracePos === -1) continue;
+		const firstCommaPos = trimmed.indexOf(",", openBracePos);
+		if (firstCommaPos === -1) continue;
 
-			// last comma of a field as delimiter https://regex101.com/r/1dvpfC/1
-			const properties = propertyStr.trim().split(/,(?=\s*[\w-]+\s*=)/);
+		const category = trimmed.slice(0, openBracePos).trim();
+		const citekey = trimmed.slice(openBracePos + 1, firstCommaPos).trim();
+		let propertyStr = trimmed.slice(firstCommaPos + 1);
+		if (propertyStr.endsWith("}")) propertyStr = propertyStr.slice(0, -1);
 
-			for (const line of properties) {
-				const equalSignPos = line.indexOf("=");
-				if (equalSignPos === -1) continue; // GUARD erroneous BibTeX formatting, empty lines, etc.
+		const entry = new BibtexEntry();
+		entry.citekey = citekey;
+		entry.icon = category.toLowerCase();
 
-				const field = line.slice(0, equalSignPos).trim().toLowerCase();
-				const value = line
-					.slice(equalSignPos + 1)
-					.replace(/{|}|,$/g, "") // remove TeX escaping
-					.trim();
+		// last comma of a field as delimiter https://regex101.com/r/1dvpfC/1
+		const properties = propertyStr.trim().split(/,(?=\s*[\w-]+\s*=)/);
 
-				switch (field) {
-					case "author":
-					case "editor": {
-						// create last name array
-						entry[field] = value.split(" and ").map((name) => {
-							const lastname = name.includes(",")
-								? name.split(",")[0] // when last name — first name
-								: name.split(" ").pop(); // when first name — last name
-							return lastname || "ERROR";
-						});
-						break;
-					}
-					case "date":
-					case "year": {
-						const yearDigits = value.match(/\d{4}/);
-						if (yearDigits) entry.year = yearDigits[0]; // edge case of BibTeX files with wrong years
-						break;
-					}
-					case "keywords": {
-						entry.keywords = value ? value.split(/ *, */) : [];
-						break;
-					}
-					case "file":
-					case "local-url":
-					case "attachment": {
-						// PERF file is decoded later when opening
-						entry.attachment = value;
-						break;
-					}
-					default:
-						// check if field is needed before adding it, to reduce JSON size
-						if (field in entry) {
-							// @ts-expect-error unclear how to annotate it so typescript is happy
-							entry[field] = value;
-						}
+		for (const line of properties) {
+			const equalSignPos = line.indexOf("=");
+			if (equalSignPos === -1) continue; // GUARD erroneous BibTeX formatting, empty lines, etc.
+
+			const field = line.slice(0, equalSignPos).trim().toLowerCase();
+			const value = line
+				.slice(equalSignPos + 1)
+				.replace(/{|}|,$/g, "") // remove TeX escaping
+				.trim();
+
+			switch (field) {
+				case "author":
+				case "editor": {
+					// create last name array
+					entry[field] = value.split(" and ").map((name) => {
+						const lastname = name.includes(",")
+							? name.split(",")[0] // when last name — first name
+							: name.split(" ").pop(); // when first name — last name
+						return lastname || "ERROR";
+					});
+					break;
 				}
+				case "date":
+				case "year": {
+					const yearDigits = value.match(/\d{4}/);
+					if (yearDigits) entry.year = yearDigits[0]; // edge case of BibTeX files with wrong years
+					break;
+				}
+				case "keywords": {
+					entry.keywords = value ? value.split(/ *, */) : [];
+					break;
+				}
+				case "file":
+				case "local-url":
+				case "attachment": {
+					// PERF file is decoded later when opening
+					entry.attachment = value;
+					break;
+				}
+				default:
+					// check if field is needed before adding it, to reduce JSON size
+					if (field in entry) {
+						// @ts-expect-error unclear how to annotate it so typescript is happy
+						entry[field] = value;
+					}
 			}
+		}
 
-			if (!entry.url && entry.doi) entry.url = "https://doi.org/" + entry.doi;
-			return acc.concat(entry);
-		}, []);
+		if (!entry.url && entry.doi) entry.url = "https://doi.org/" + entry.doi;
+		bibtexEntryArray.push(entry);
+	}
 
 	return bibtexEntryArray;
 }
@@ -243,6 +248,7 @@ function run() {
 	const litNoteFilterStr = "*";
 	const pdfFilterStr = "pdf";
 	const alfredBarWidth = Number.parseInt($.getenv("alfred_bar_width"));
+	const alfredWorkflowData = $.getenv("alfred_workflow_data");
 
 	const matchAuthorsInEtAl = $.getenv("match_authors_in_etal") === "1";
 	const matchShortYears = $.getenv("match_year_type").includes("short");
@@ -273,30 +279,18 @@ function run() {
 
 	//──────────────────────────────────────────────────────────────────────────────
 
-	/** @type {string[]} */
-	let litNoteArray = [];
-	/** @type {string[]} */
-	let pdfArray = [];
+	const pdfListFile = alfredWorkflowData + "/pdf_list.txt";
+	const litListFile = alfredWorkflowData + "/lit_list.txt";
 
-	if (litNoteFolderExists) {
-		litNoteArray = app
-			.doShellScript(`find "${litNoteFolder}" -type f -name "*.md"`)
-			.split("\r")
-			.map((/** @type {string} */ filepath) => {
-				return filepath.replace(/.*\/(.*)\.md/, "$1"); // only basename w/o ext
-			});
-	}
+	const pdfArray = (pdfFolderExists && fileExists(pdfListFile))
+		? readFile(pdfListFile).split("\n")
+		: [];
+	const litNoteArray = (litNoteFolderExists && fileExists(litListFile))
+		? readFile(litListFile).split("\n")
+		: [];
 
-	if (pdfFolderExists) {
-		pdfArray = app
-			.doShellScript(`find "${pdfFolder}" -type f -name "*.pdf"`)
-			.split("\r")
-			.map((/** @type {string} */ filepath) => {
-				return filepath
-					.replace(/.*\/(.*)\.pdf$/, "$1") // only basename w/o ext
-					.replace(/(_[^_]*$)/, ""); // part before underscore
-			});
-	}
+	const pdfSet = new Set(pdfArray);
+	const litNoteSet = new Set(litNoteArray);
 
 	//──────────────────────────────────────────────────────────────────────────────
 
@@ -327,14 +321,14 @@ function run() {
 		let extraMatcher = "";
 
 		// Literature Notes
-		const hasLitNote = litNoteFolderExists && litNoteArray.includes(citekey);
+		const hasLitNote = litNoteFolderExists && litNoteSet.has(citekey);
 		if (hasLitNote) {
 			emojis.push(litNoteEmoji);
 			extraMatcher += litNoteFilterStr;
 		}
 
 		// PDFs
-		const hasPdf = pdfFolderExists && pdfArray.includes(citekey);
+		const hasPdf = pdfFolderExists && pdfSet.has(citekey);
 		if (hasPdf) {
 			emojis.push(pdfEmoji);
 			extraMatcher += pdfFilterStr;
@@ -386,7 +380,8 @@ function run() {
 			journal,
 			extraMatcher,
 		]
-			.map((item) => item.replaceAll("-", " ") + " " + item) // match item with and without dash
+			.filter(Boolean)
+			.map((item) => item.includes("-") ? (item.replaceAll("-", " ") + " " + item) : item)
 			.join(" ");
 
 		// Alfred: Large Type

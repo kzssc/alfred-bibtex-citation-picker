@@ -24,6 +24,21 @@ if [[ "$bibtex_library_path" -nt "$buffer" ]] ||
 	[[ "$buffer_reload" == "true" ]] ||
 	[[ "$(head -n1 "$last_version_file")" != "$alfred_workflow_version" ]] \
 	; then
+	# Rebuild PDF and Obsidian literature note file lists in parallel background tasks
+	pdf_list_file="$alfred_workflow_data/pdf_list.txt"
+	lit_list_file="$alfred_workflow_data/lit_list.txt"
+	if [[ -d "$pdf_folder" ]]; then
+		find "$pdf_folder" -type f -name "*.pdf" | awk -F/ '{print $NF}' | sed -E 's/\.pdf$//; s/_[^_]*$//' > "$pdf_list_file" &
+	else
+		echo -n "" > "$pdf_list_file" &
+	fi
+	if [[ -d "$literature_note_folder" ]]; then
+		find "$literature_note_folder" -type f -name "*.md" | awk -F/ '{print $NF}' | sed 's/\.md$//' > "$lit_list_file" &
+	else
+		echo -n "" > "$lit_list_file" &
+	fi
+	wait
+
 	osascript -l JavaScript "./scripts/write-citation-picker-buffer.js" > "$buffer"
 	echo -n "$alfred_workflow_version" > "$last_version_file"
 fi
