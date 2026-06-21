@@ -35,7 +35,15 @@ function run(argv) {
 		return msg; // Alfred notification
 	}
 
-	// shell `open` appears to be the only reliable way for opening files
-	app.doShellScript(`open '${path}'`);
-	console.log("attachment path:", path);
+	// If the file is stored in Zotero, open it via Zotero protocol to sync read status
+	const storageMatch = path.match(/\/Zotero\/storage\/([^/]+)\//i);
+	if (storageMatch && storageMatch[1].length === 8) {
+		const itemKey = storageMatch[1];
+		app.doShellScript(`open 'zotero://open-pdf/library/items/${itemKey}'`);
+		console.log("opening via Zotero scheme, itemKey:", itemKey);
+	} else {
+		// shell `open` appears to be the only reliable way for opening files
+		app.doShellScript(`open '${path}'`);
+		console.log("attachment path:", path);
+	}
 }
