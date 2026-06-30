@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -639,6 +640,67 @@ func openLitNote(citekey string) {
 	}
 }
 
+func extractEntry(citekey string) {
+	libraryPath := os.Getenv("bibtex_library_path")
+	secondaryLibraryPath := os.Getenv("secondary_library_path")
+
+	extracted := extractFromSingleLibrary(libraryPath, citekey)
+	if extracted == "" && secondaryLibraryPath != "" {
+		extracted = extractFromSingleLibrary(secondaryLibraryPath, citekey)
+	}
+
+	if extracted != "" {
+		fmt.Print(extracted)
+	}
+}
+
+func extractFromSingleLibrary(libraryPath string, citekey string) string {
+	if libraryPath == "" || citekey == "" || !fileExists(libraryPath) {
+		return ""
+	}
+	data, err := os.ReadFile(libraryPath)
+	if err != nil {
+		return ""
+	}
+
+	keyBytes := []byte("{" + citekey + ",")
+	keyIndex := bytes.Index(data, keyBytes)
+	if keyIndex == -1 {
+		dataLower := bytes.ToLower(data)
+		keyIndex = bytes.Index(dataLower, bytes.ToLower(keyBytes))
+		if keyIndex == -1 {
+			return ""
+		}
+	}
+
+	start := keyIndex
+	for start > 0 && data[start] != '@' {
+		start--
+	}
+
+	braceDepth := 0
+	end := keyIndex
+	for end < len(data) {
+		char := data[end]
+		if char == '{' {
+			braceDepth++
+		} else if char == '}' {
+			braceDepth--
+			if braceDepth == 0 {
+				end++
+				break
+			}
+		}
+		end++
+	}
+
+	if end > len(data) {
+		end = len(data)
+	}
+
+	return string(data[start:end])
+}
+
 func main() {
 	args := os.Args
 	if len(args) > 1 {
@@ -657,6 +719,13 @@ func main() {
 				return
 			}
 			openLitNote(args[2])
+			return
+		case "extract-entry":
+			if len(args) < 3 {
+				fmt.Println("Usage: extract-entry <citekey>")
+				return
+			}
+			extractEntry(args[2])
 			return
 		}
 	}
