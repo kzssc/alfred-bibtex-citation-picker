@@ -1,20 +1,55 @@
 #!/usr/bin/env osascript -l JavaScript
-ObjC.import("stdlib");
-const app = Application.currentApplication();
-app.includeStandardAdditions = true;
-//──────────────────────────────────────────────────────────────────────────────
 
-/** @param {string} path */
-function readFile(path) {
-	const data = $.NSFileManager.defaultManager.contentsAtPath(path);
-	const str = $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding);
-	return ObjC.unwrap(str);
-}
+const isNode = typeof process !== "undefined" && process.release && process.release.name === "node";
 
-/** @param {string} filePath */
-function fileExists(filePath) {
-	if (!filePath) return false;
-	return Application("Finder").exists(Path(filePath));
+let readFile, fileExists, getenv;
+
+if (isNode) {
+	const fs = require("fs");
+	readFile = function (path) {
+		return fs.readFileSync(path, "utf8");
+	};
+	fileExists = function (filePath) {
+		if (!filePath) return false;
+		try {
+			return fs.existsSync(filePath);
+		} catch (e) {
+			return false;
+		}
+	};
+	getenv = function (key) {
+		return process.env[key] || "";
+	};
+} else {
+	// JXA fallback
+	ObjC.import("stdlib");
+	const app = Application.currentApplication();
+	app.includeStandardAdditions = true;
+
+	readFile = function (path) {
+		try {
+			const data = $.NSFileManager.defaultManager.contentsAtPath(path);
+			const str = $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding);
+			return ObjC.unwrap(str);
+		} catch (e) {
+			return "";
+		}
+	};
+	fileExists = function (filePath) {
+		if (!filePath) return false;
+		try {
+			return $.NSFileManager.defaultManager.fileExistsAtPath(filePath);
+		} catch (e) {
+			return false;
+		}
+	};
+	getenv = function (key) {
+		try {
+			return $.getenv(key);
+		} catch (e) {
+			return "";
+		}
+	};
 }
 
 //──────────────────────────────────────────────────────────────────────────────
@@ -78,6 +113,7 @@ class BibtexEntry {
  * @return {string} decodedStr
  */
 function bibtexDecode(encodedStr) {
+	if (!encodedStr) return "";
 	const decodePairs = {
 		'{\\"u}': "ü",
 		'{\\"a}': "ä",
@@ -93,7 +129,6 @@ function bibtexDecode(encodedStr) {
 		'\\"O': "Ö",
 		"\\ss": "ß",
 		"{\\ss}": "ß",
-
 		// bibtex-tidy
 		'\\"{O}': "Ö",
 		'\\"{o}': "ö",
@@ -101,7 +136,6 @@ function bibtexDecode(encodedStr) {
 		'\\"{a}': "ä",
 		'\\"{u}': "ü",
 		'\\"{U}': "Ü",
-
 		// Bookends
 		"\\''A": "Ä",
 		"\\''O": "Ö",
@@ -109,7 +143,6 @@ function bibtexDecode(encodedStr) {
 		"\\''a": "ä",
 		"\\''o": "ö",
 		"\\''u": "ü",
-
 		// frech chars
 		"{\\'a}": "a",
 		"{\\'o}": "ó",
@@ -119,7 +152,6 @@ function bibtexDecode(encodedStr) {
 		"\\'E": "É",
 		"\\c{c}": "c",
 		'\\"{i}': "i",
-
 		// other chars
 		"{\\~n}": "n",
 		"\\~a": "ã",
@@ -130,7 +162,6 @@ function bibtexDecode(encodedStr) {
 		"\\^{i}": "i",
 		"\\'\\i": "í",
 		"{\\'c}": "c",
-
 		// special chars
 		"{\\ldots}": "…",
 		"\\&": "&",
@@ -144,11 +175,21 @@ function bibtexDecode(encodedStr) {
 		'\\"e': "e",
 	};
 
-	let decodedStr = encodedStr;
-	for (const [key, value] of Object.entries(decodePairs)) {
-		decodedStr = decodedStr.replaceAll(key, value);
+	// Escape regex special chars
+	function escapeRegExp(string) {
+		return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	}
-	return decodedStr;
+
+	// Build regex sorting longest first to avoid partial matches
+	const decodeRegex = new RegExp(
+		Object.keys(decodePairs)
+			.sort((a, b) => b.length - a.length)
+			.map(escapeRegExp)
+			.join("|"),
+		"g"
+	);
+
+	return encodedStr.replace(decodeRegex, (match) => decodePairs[match]);
 }
 
 /**
@@ -247,19 +288,19 @@ function run() {
 	const secondLibraryIcon = "2️⃣ ";
 	const litNoteFilterStr = "*";
 	const pdfFilterStr = "pdf";
-	const alfredBarWidth = Number.parseInt($.getenv("alfred_bar_width"));
-	const alfredWorkflowData = $.getenv("alfred_workflow_data");
+	const alfredBarWidth = Number.parseInt(getenv("alfred_bar_width"));
+	const alfredWorkflowData = getenv("alfred_workflow_data");
 
-	const matchAuthorsInEtAl = $.getenv("match_authors_in_etal") === "1";
-	const matchShortYears = $.getenv("match_year_type").includes("short");
-	const matchFullYears = $.getenv("match_year_type").includes("full");
-	const openEntriesIn = $.getenv("open_entries_in");
+	const matchAuthorsInEtAl = getenv("match_authors_in_etal") === "1";
+	const matchShortYears = getenv("match_year_type").includes("short");
+	const matchFullYears = getenv("match_year_type").includes("full");
+	const openEntriesIn = getenv("open_entries_in");
 
-	const libraryPath = $.getenv("bibtex_library_path");
-	const secondaryLibraryPath = $.getenv("secondary_library_path");
+	const libraryPath = getenv("bibtex_library_path");
+	const secondaryLibraryPath = getenv("secondary_library_path");
 
-	const litNoteFolder = $.getenv("literature_note_folder");
-	const pdfFolder = $.getenv("pdf_folder");
+	const litNoteFolder = getenv("literature_note_folder");
+	const pdfFolder = getenv("pdf_folder");
 	const litNoteFolderExists = fileExists(litNoteFolder);
 	const pdfFolderExists = fileExists(pdfFolder);
 
@@ -451,4 +492,8 @@ function run() {
 		.map((item) => convertToAlfredItems(item, "second"));
 
 	return JSON.stringify({ items: [...firstBibtexEntryArray, ...secondBibtexEntryArray] });
+}
+
+if (isNode) {
+	console.log(run());
 }

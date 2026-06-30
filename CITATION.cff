@@ -9,6 +9,9 @@ title: Supercharged Citation Picker
 abstract: Citation picker & lightweight reference manager for BibTeX files, via Alfred.
 type: software
 authors:
+  - family-names: Zhang
+    given-names: S. Chris
+    email: "academic@czhang.uk"
   - family-names: Grieser
     given-names: Christopher
     orcid: "https://orcid.org/0000-0002-0767-9496"

@@ -3,9 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>bundleid</key>
-	<string>de.chris-grieser.alfred-bibtex-citation-picker</string>
-	<key>category</key>
-	<string>⭐️</string>
+	<string>uk.czhang.supercharged-citation-picker</string>
 	<key>connections</key>
 	<dict>
 		<key>00BFDB01-AD99-47DB-9BB8-5A6EA2E3016C</key>
@@ -803,13 +801,13 @@
 		</array>
 	</dict>
 	<key>createdby</key>
-	<string>Chris Grieser</string>
+	<string>S. Chris Zhang</string>
 	<key>description</key>
 	<string>Citation picker and lightweight references manager for `.bib` files</string>
 	<key>disabled</key>
 	<false/>
 	<key>name</key>
-	<string>Supercharged Citation Picker</string>
+	<string>Supercharged Citation Picker (Optimized)</string>
 	<key>objects</key>
 	<array>
 		<dict>
@@ -862,11 +860,11 @@
 				<key>focusedappvariablename</key>
 				<string>focusedapp</string>
 				<key>hotkey</key>
-				<integer>42</integer>
+				<integer>6</integer>
 				<key>hotmod</key>
-				<integer>1048576</integer>
+				<integer>1179648</integer>
 				<key>hotstring</key>
-				<string>#</string>
+				<string>Z</string>
 				<key>leftcursor</key>
 				<false/>
 				<key>modsmode</key>
@@ -1065,8 +1063,6 @@
 				<integer>0</integer>
 				<key>hotmod</key>
 				<integer>0</integer>
-				<key>hotstring</key>
-				<string></string>
 				<key>leftcursor</key>
 				<false/>
 				<key>modsmode</key>
@@ -1707,7 +1703,7 @@ echo "$*"</string>
 				<key>type</key>
 				<integer>8</integer>
 				<key>withspace</key>
-				<false/>
+				<true/>
 			</dict>
 			<key>type</key>
 			<string>alfred.workflow.input.scriptfilter</string>
@@ -2068,7 +2064,7 @@ echo "$*"</string>
 				<key>text</key>
 				<string>Delete '@{var:citekey}' from BibTeX Library?</string>
 				<key>withspace</key>
-				<false/>
+				<true/>
 			</dict>
 			<key>type</key>
 			<string>alfred.workflow.input.keyword</string>
@@ -3101,13 +3097,17 @@ to set a hotkey for adding DOI/ISBN</string>
 		<key>_format_page_before_citekey</key>
 		<string>false</string>
 		<key>_format_page_prefix</key>
-		<string>, p. </string>
+		<string>,</string>
 		<key>_format_page_suffix</key>
 		<string></string>
+		<key>alfred_bar_length</key>
+		<string>60</string>
+		<key>max_title_length</key>
+		<string>50</string>
 	</dict>
 	<key>version</key>
 	<string>11.20.10</string>
 	<key>webaddress</key>
-	<string>https://github.com/chrisgrieser/alfred-bibtex-citation-picker</string>
+	<string>https://czhang.uk</string>
 </dict>
 </plist>
