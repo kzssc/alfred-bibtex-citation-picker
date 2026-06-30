@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -538,7 +540,127 @@ func convertToAlfredItem(entry BibtexEntry, whichLibrary string, alfredBarWidth 
 	}
 }
 
+type ObsidianConfig struct {
+	Vaults map[string]struct {
+		Path string `json:"path"`
+	} `json:"vaults"`
+}
+
+func openAttachment(rawPath string) {
+	path := rawPath
+
+	decoded, err := url.QueryUnescape(path)
+	if err == nil {
+		path = decoded
+	}
+
+	semicolonPos := strings.Index(path, ";/Users/")
+	if semicolonPos != -1 {
+		path = path[:semicolonPos]
+	}
+
+	path = strings.TrimPrefix(path, "file://localhost")
+	path = strings.TrimPrefix(path, "file://")
+
+	if strings.HasPrefix(path, "~") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			path = filepath.Join(home, path[1:])
+		}
+	}
+
+	if !fileExists(path) && !dirExists(path) {
+		fmt.Printf("File does not exist: %s\n", path)
+		return
+	}
+
+	zoteroStorageRegex := regexp.MustCompile(`/Zotero/storage/([^/]{8})/`)
+	match := zoteroStorageRegex.FindStringSubmatch(path)
+	if len(match) > 1 {
+		itemKey := match[1]
+		cmd := exec.Command("open", "zotero://open-pdf/library/items/"+itemKey)
+		cmd.Run()
+		fmt.Printf("opening via Zotero scheme, itemKey: %s\n", itemKey)
+	} else {
+		cmd := exec.Command("open", path)
+		cmd.Run()
+		fmt.Printf("attachment path: %s\n", path)
+	}
+}
+
+func openLitNote(citekey string) {
+	litNoteFolder := os.Getenv("literature_note_folder")
+	if strings.HasPrefix(litNoteFolder, "~") {
+		home, _ := os.UserHomeDir()
+		litNoteFolder = filepath.Join(home, litNoteFolder[1:])
+	}
+
+	notePath := filepath.Join(litNoteFolder, citekey+".md")
+
+	if !fileExists(notePath) {
+		template := "---\ntags: \naliases:\n---\n\n"
+		err := os.WriteFile(notePath, []byte(template), 0644)
+		if err != nil {
+			fmt.Printf("Failed to create note: %v\n", err)
+			return
+		}
+	}
+
+	home, _ := os.UserHomeDir()
+	obsidianConfigPath := filepath.Join(home, "Library", "Application Support", "obsidian", "obsidian.json")
+
+	inVault := false
+	if fileExists(obsidianConfigPath) {
+		configData, err := os.ReadFile(obsidianConfigPath)
+		if err == nil {
+			var config ObsidianConfig
+			err = json.Unmarshal(configData, &config)
+			if err == nil {
+				notePathLower := strings.ToLower(notePath)
+				for _, vault := range config.Vaults {
+					vPath := strings.ToLower(vault.Path)
+					if vPath != "" && strings.HasPrefix(notePathLower, vPath) {
+						inVault = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if inVault {
+		encodedPath := url.QueryEscape(notePath)
+		encodedPath = strings.ReplaceAll(encodedPath, "+", "%20")
+		cmd := exec.Command("open", "obsidian://open?path="+encodedPath)
+		cmd.Run()
+	} else {
+		cmd := exec.Command("open", notePath)
+		cmd.Run()
+	}
+}
+
 func main() {
+	args := os.Args
+	if len(args) > 1 {
+		subcmd := args[1]
+		switch subcmd {
+		case "open-attachment":
+			if len(args) < 3 {
+				fmt.Println("Usage: open-attachment <path>")
+				return
+			}
+			openAttachment(args[2])
+			return
+		case "open-litnote":
+			if len(args) < 3 {
+				fmt.Println("Usage: open-litnote <citekey>")
+				return
+			}
+			openLitNote(args[2])
+			return
+		}
+	}
+
 	alfredBarWidth, _ := strconv.Atoi(os.Getenv("alfred_bar_width"))
 	if alfredBarWidth == 0 {
 		alfredBarWidth = 80
