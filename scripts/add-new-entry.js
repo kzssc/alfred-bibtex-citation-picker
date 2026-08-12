@@ -83,7 +83,8 @@ function inputToEntryJson(input) {
 	const entry = {};
 
 	// https://www.crossref.org/blog/dois-and-matching-regular-expressions/
-	const doiRegex = /\b10.\d{4,9}\/[-._;()/:A-Z0-9]+(?=$|[?/ ])/i;
+	// added `#` in lookahead to match cases where header-link is at the end of URL
+	const doiRegex = /\b10.\d{4,9}\/[-._;()/:A-Z0-9]+(?=$|[?/# ])/i;
 
 	const isbnRegex = /^[\d-]{9,40}$/;
 	const doi = input.match(doiRegex);
