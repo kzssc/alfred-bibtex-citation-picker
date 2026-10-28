@@ -33,49 +33,54 @@ type BibtexEntry struct {
 }
 
 var bibtexReplacer = strings.NewReplacer(
-	`{\\"u}`, "ü",
-	`{\\"a}`, "ä",
-	`{\\"o}`, "ö",
-	`{\\"U}`, "Ü",
-	`{\\"A}`, "Ä",
-	`{\\"O}`, "Ö",
-	`\\"u`, "ü",
-	`\\"a`, "ä",
-	`\\"o`, "ö",
-	`\\"U`, "Ü",
-	`\\"A`, "Ä",
-	`\\"O`, "Ö",
+	`{\"u}`, "ü",
+	`{\"a}`, "ä",
+	`{\"o}`, "ö",
+	`{\"U}`, "Ü",
+	`{\"A}`, "Ä",
+	`{\"O}`, "Ö",
+	`\"u`, "ü",
+	`\"a`, "ä",
+	`\"o`, "ö",
+	`\"U`, "Ü",
+	`\"A`, "Ä",
+	`\"O`, "Ö",
 	`\ss`, "ß",
 	`{\ss}`, "ß",
-	`\\"{O}`, "Ö",
-	`\\"{o}`, "ö",
-	`\\"{A}`, "Ä",
-	`\\"{a}`, "ä",
-	`\\"{u}`, "ü",
-	`\\"{U}`, "Ü",
-	`\\''A`, "Ä",
-	`\\''O`, "Ö",
-	`\\''U`, "Ü",
-	`\\''a`, "ä",
-	`\\''o`, "ö",
-	`\\''u`, "ü",
-	`{\\'a}`, "a",
-	`{\\'o}`, "ó",
-	`{\\'e}`, "e",
-	"{\x60{e}}", "e",
-	"{\x60e}", "e",
-	`\\'E`, "É",
-	`\c{c}`, "c",
-	`\\"{i}`, "i",
-	`{\~n}`, "n",
+	// bibtex-tidy
+	`\"{O}`, "Ö",
+	`\"{o}`, "ö",
+	`\"{A}`, "Ä",
+	`\"{a}`, "ä",
+	`\"{u}`, "ü",
+	`\"{U}`, "Ü",
+	// Bookends
+	`\''A`, "Ä",
+	`\''O`, "Ö",
+	`\''U`, "Ü",
+	`\''a`, "ä",
+	`\''o`, "ö",
+	`\''u`, "ü",
+	// French chars
+	`{\'a}`, "á",
+	`{\'o}`, "ó",
+	`{\'e}`, "é",
+	"{\\\x60{e}}", "è",
+	"{\\\x60e}", "è",
+	`\'E`, "É",
+	`\c{c}`, "ç",
+	`\"{i}`, "ï",
+	// other chars
+	`{\~n}`, "ñ",
 	`\~a`, "ã",
-	`{\v c}`, "c",
+	`{\v c}`, "č",
 	`\o{}`, "ø",
 	`{\o}`, "ø",
 	`{\O}`, "Ø",
-	`\^{i}`, "i",
+	`\^{i}`, "î",
 	`\'\i`, "í",
-	`{\'c}`, "c",
+	`{\'c}`, "ć",
+	// special chars
 	`{\ldots}`, "…",
 	`\&`, "&",
 	"``", "\"",
@@ -85,11 +90,111 @@ var bibtexReplacer = strings.NewReplacer(
 	"---", "—",
 	"--", "—",
 	"{extquotesingle}", "'",
-	`\\"e`, "e",
+	`\"e`, "ë",
 )
 
+var diacriticFolder = strings.NewReplacer(
+	"ä", "a", "á", "a", "à", "a", "â", "a", "ã", "a", "å", "a", "ā", "a", "ą", "a",
+	"Ä", "A", "Á", "A", "À", "A", "Â", "A", "Ã", "A", "Å", "A", "Ā", "A", "Ą", "A",
+	"ë", "e", "é", "e", "è", "e", "ê", "e", "ē", "e", "ę", "e", "ě", "e",
+	"Ë", "E", "É", "E", "È", "E", "Ê", "E", "Ē", "E", "Ę", "E", "Ě", "E",
+	"ï", "i", "í", "i", "ì", "i", "î", "i", "ī", "i", "İ", "I", "Í", "I", "Ì", "I", "Î", "I", "Ï", "I",
+	"ö", "o", "ó", "o", "ò", "o", "ô", "o", "õ", "o", "ø", "o", "ō", "o", "ő", "o",
+	"Ö", "O", "Ó", "O", "Ò", "O", "Ô", "O", "Õ", "O", "Ø", "O", "Ō", "O", "Ő", "O",
+	"ü", "u", "ú", "u", "ù", "u", "û", "u", "ū", "u", "ů", "u", "ű", "u",
+	"Ü", "U", "Ú", "U", "Ù", "U", "Û", "U", "Ū", "U", "Ů", "U", "Ű", "U",
+	"ç", "c", "ć", "c", "č", "c", "Ç", "C", "Ć", "C", "Č", "C",
+	"ñ", "n", "ń", "n", "ň", "n", "Ñ", "N", "Ń", "N", "Ň", "N",
+	"š", "s", "ś", "s", "ş", "s", "Š", "S", "Ś", "S", "Ş", "S",
+	"ž", "z", "ź", "z", "ż", "z", "Ž", "Z", "Ź", "Z", "Ż", "Z",
+	"ł", "l", "Ł", "L", "ř", "r", "Ř", "R", "ý", "y", "ÿ", "y", "Ý", "Y",
+	"ď", "d", "Ď", "D", "ť", "t", "Ť", "T", "ğ", "g", "Ğ", "G",
+	"ß", "ss", "æ", "ae", "Æ", "AE", "œ", "oe", "Œ", "OE",
+)
+
+func foldDiacritics(s string) string {
+	return diacriticFolder.Replace(s)
+}
+
+// LaTeX accent commands -> precomposed letters: accent -> {base letters, composed letters} (same order)
+var latexAccents = map[string][2]string{
+	`"`: {"aeiouyAEIOU", "äëïöüÿÄËÏÖÜ"},
+	`'`: {"aeiouyAEIOUYcnszlrCNSZLR", "áéíóúýÁÉÍÓÚÝćńśźĺŕĆŃŚŹĹŔ"},
+	"`": {"aeiouAEIOU", "àèìòùÀÈÌÒÙ"},
+	`^`: {"aeiouAEIOUcghjswCGHJSW", "âêîôûÂÊÎÔÛĉĝĥĵŝŵĈĜĤĴŜŴ"},
+	`~`: {"anoiuANOIU", "ãñõĩũÃÑÕĨŨ"},
+	`=`: {"aeiouAEIOU", "āēīōūĀĒĪŌŪ"},
+	`.`: {"zcegZCEG", "żċėġŻĊĖĠ"},
+	`c`: {"cstgkCSTGK", "çşţģķÇŞŢĢĶ"},
+	`v`: {"cszrneEdtCSZRNDT", "čšžřňěĚďťČŠŽŘŇĎŤ"},
+	`u`: {"ageiouAGEIOU", "ăğĕĭŏŭĂĞĔĬŎŬ"},
+	`H`: {"ouOU", "őűŐŰ"},
+	`k`: {"aeAE", "ąęĄĘ"},
+	`r`: {"auAU", "åůÅŮ"},
+}
+
+// braced: {\^e} {\^{e}} {\v c} {\c{c}}; bare: \^e \^{e} \'\i \c{c}
+var latexAccentBraced = regexp.MustCompile("\\{\\\\([\"'`^~=.]|[cvuHkr])(?:\\{\\\\?([A-Za-z])\\}|\\s?\\\\?([A-Za-z]))\\}")
+var latexAccentBare = regexp.MustCompile("\\\\([\"'`^~=.])(?:\\{\\\\?([A-Za-z])\\}|\\\\?([A-Za-z]))|\\\\([cvuHkr])(?:\\{\\\\?([A-Za-z])\\}| ([A-Za-z])\\b)")
+
+func composeAccent(accent, letter string) (string, bool) {
+	pair, ok := latexAccents[accent]
+	if !ok {
+		return "", false
+	}
+	base, composed := []rune(pair[0]), []rune(pair[1])
+	for idx, b := range base {
+		if string(b) == letter && idx < len(composed) {
+			return string(composed[idx]), true
+		}
+	}
+	return "", false
+}
+
+var commaBelowRegex = regexp.MustCompile("\\{\\\\textcommabelow\\s+([sStT])\\}|\\\\textcommabelow\\{([sStT])\\}")
+var textStyleRegex = regexp.MustCompile("\\\\(?:text(?:sc|bf|it|sf|tt|rm|up|sl|superscript|subscript)|emph)\\{")
+var textSymbolReplacer = strings.NewReplacer(
+	`\textbar{}`, "|", `\textbar`, "|",
+	`\textquestiondown{}`, "¿", `\textquestiondown`, "¿",
+	`\texthorizontalbar{}`, "―", `\texthorizontalbar`, "―",
+	`\textasciiacute{}`, "´", `\textasciiacute`, "´",
+	`\texteuro{}`, "€", `\texteuro`, "€",
+)
+var commaBelowLetters = map[string]string{"s": "ș", "S": "Ș", "t": "ț", "T": "Ț"}
+
+func decodeLatexAccents(s string) string {
+	s = commaBelowRegex.ReplaceAllStringFunc(s, func(match string) string {
+		m := commaBelowRegex.FindStringSubmatch(match)
+		return commaBelowLetters[m[1]+m[2]]
+	})
+	s = textStyleRegex.ReplaceAllString(s, "{") // keep content, drop the style macro
+	s = textSymbolReplacer.Replace(s)
+	for _, re := range []*regexp.Regexp{latexAccentBraced, latexAccentBare} {
+		s = re.ReplaceAllStringFunc(s, func(match string) string {
+			m := re.FindStringSubmatch(match)
+			accent, letter := "", ""
+			for _, g := range m[1:] {
+				if g == "" {
+					continue
+				}
+				if accent == "" {
+					accent = g
+				} else {
+					letter = g
+					break
+				}
+			}
+			if out, ok := composeAccent(accent, letter); ok {
+				return out
+			}
+			return match
+		})
+	}
+	return s
+}
+
 func bibtexDecode(s string) string {
-	return bibtexReplacer.Replace(s)
+	return bibtexReplacer.Replace(decodeLatexAccents(s))
 }
 
 func splitProperties(s string) []string {
@@ -161,7 +266,7 @@ func bibtexParse(raw string) []BibtexEntry {
 
 			field := strings.ToLower(strings.TrimSpace(line[:equalSignPos]))
 			value := strings.TrimSpace(line[equalSignPos+1:])
-			value = strings.Trim(value, "{},")
+			value = strings.TrimSpace(strings.NewReplacer("{", "", "}", "").Replace(strings.TrimSuffix(value, ","))) // remove TeX escaping, as in JS
 
 			switch field {
 			case "author", "editor":
@@ -459,6 +564,10 @@ func convertToAlfredItem(entry BibtexEntry, whichLibrary string, alfredBarWidth 
 		}
 	}
 	alfredMatcher := strings.Join(finalMatcherParts, " ")
+	// diacritic-insensitive search: append an ASCII-folded copy (Mähringer -> Mahringer)
+	if folded := foldDiacritics(alfredMatcher); folded != alfredMatcher {
+		alfredMatcher += " " + folded
+	}
 
 	var autocomplete string
 	if len(primaryNames) > 0 {
@@ -531,7 +640,7 @@ func convertToAlfredItem(entry BibtexEntry, whichLibrary string, alfredBarWidth 
 		Icon: &AlfredIcon{
 			Path: "icons/" + entry.Icon + ".png",
 		},
-		UID:          entry.Citekey,
+		UID: entry.Citekey,
 		Text: &AlfredText{
 			Copy:      entry.URL,
 			LargeType: largeTypeInfo,

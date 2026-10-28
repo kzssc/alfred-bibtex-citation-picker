@@ -109,6 +109,36 @@ class BibtexEntry {
 }
 
 /**
+ * Generic LaTeX accent decoder: {\^e}, \"{a}, {\v c}, \c{c}, \'\i …
+ * @param {string} str
+ * @return {string}
+ */
+function decodeLatexAccents(str) {
+	const combining = {
+		'"': "\u0308", "'": "\u0301", "`": "\u0300", "^": "\u0302", "~": "\u0303",
+		"=": "\u0304", ".": "\u0307", c: "\u0327", v: "\u030C", u: "\u0306",
+		H: "\u030B", k: "\u0328", r: "\u030A",
+	};
+	const compose = (/** @type {string} */ accent, /** @type {string} */ letter, /** @type {string} */ whole) => {
+		const composed = (letter + combining[accent]).normalize("NFC");
+		return composed.length === 1 ? composed : whole;
+	};
+	const commaBelow = { s: "ș", S: "Ș", t: "ț", T: "Ț" };
+	str = str
+		.replace(/\{\\textcommabelow\s+([sStT])\}|\\textcommabelow\{([sStT])\}/g, (_m, a, b) => commaBelow[a || b])
+		.replace(/\\(?:text(?:sc|bf|it|sf|tt|rm|up|sl|superscript|subscript)|emph)\{/g, "{") // keep content, drop the style macro
+		.replace(/\\textbar(\{\})?/g, "|")
+		.replace(/\\textquestiondown(\{\})?/g, "¿")
+		.replace(/\\texthorizontalbar(\{\})?/g, "―")
+		.replace(/\\textasciiacute(\{\})?/g, "´")
+		.replace(/\\texteuro(\{\})?/g, "€");
+	return str
+		.replace(/\{\\(["'`^~=.]|[cvuHkr])(?:\{\\?([A-Za-z])\}|\s?\\?([A-Za-z]))\}/g, (m, a, l1, l2) => compose(a, l1 || l2, m))
+		.replace(/\\(["'`^~=.])(?:\{\\?([A-Za-z])\}|\\?([A-Za-z]))/g, (m, a, l1, l2) => compose(a, l1 || l2, m))
+		.replace(/\\([cvuHkr])(?:\{\\?([A-Za-z])\}| ([A-Za-z])\b)/g, (m, a, l1, l2) => compose(a, l1 || l2, m));
+}
+
+/**
  * @param {string} encodedStr
  * @return {string} decodedStr
  */
@@ -144,24 +174,24 @@ function bibtexDecode(encodedStr) {
 		"\\''o": "ö",
 		"\\''u": "ü",
 		// frech chars
-		"{\\'a}": "a",
+		"{\\'a}": "á",
 		"{\\'o}": "ó",
-		"{\\'e}": "e",
-		"{\\`{e}}": "e",
-		"{\\`e}": "e",
+		"{\\'e}": "é",
+		"{\\`{e}}": "è",
+		"{\\`e}": "è",
 		"\\'E": "É",
-		"\\c{c}": "c",
-		'\\"{i}': "i",
+		"\\c{c}": "ç",
+		'\\"{i}': "ï",
 		// other chars
-		"{\\~n}": "n",
+		"{\\~n}": "ñ",
 		"\\~a": "ã",
-		"{\\v c}": "c",
+		"{\\v c}": "č",
 		"\\o{}": "ø",
 		"{\\o}": "ø",
 		"{\\O}": "Ø",
-		"\\^{i}": "i",
+		"\\^{i}": "î",
 		"\\'\\i": "í",
-		"{\\'c}": "c",
+		"{\\'c}": "ć",
 		// special chars
 		"{\\ldots}": "…",
 		"\\&": "&",
@@ -172,7 +202,7 @@ function bibtexDecode(encodedStr) {
 		"---": "—",
 		"--": "—",
 		"{extquotesingle}": "'",
-		'\\"e': "e",
+		'\\"e': "ë",
 	};
 
 	// Escape regex special chars
@@ -189,7 +219,7 @@ function bibtexDecode(encodedStr) {
 		"g"
 	);
 
-	return encodedStr.replace(decodeRegex, (match) => decodePairs[match]);
+	return decodeLatexAccents(encodedStr).replace(decodeRegex, (match) => decodePairs[match]);
 }
 
 /**
@@ -411,7 +441,7 @@ function run() {
 		if (matchShortYears) yearMatches.push(year.slice(-2));
 		if (matchFullYears) yearMatches.push(year);
 
-		const alfredMatcher = [
+		const baseMatcher = [
 			"@" + citekey,
 			...keywordMatches,
 			title,
@@ -424,6 +454,17 @@ function run() {
 			.filter(Boolean)
 			.map((item) => item.includes("-") ? (item.replaceAll("-", " ") + " " + item) : item)
 			.join(" ");
+		// diacritic-insensitive search: append an ASCII-folded copy (Mähringer -> Mahringer)
+		const foldedMatcher = baseMatcher
+			.replaceAll("ß", "ss")
+			.replaceAll("ø", "o")
+			.replaceAll("Ø", "O")
+			.replaceAll("ł", "l")
+			.replaceAll("Ł", "L")
+			.normalize("NFD")
+			.replace(/[\u0300-\u036f]/g, "")
+			.normalize("NFC");
+		const alfredMatcher = foldedMatcher === baseMatcher ? baseMatcher : baseMatcher + " " + foldedMatcher;
 
 		// Alfred: Large Type
 		let largeTypeInfo = `${title} \n(citekey: ${citekey})`;
