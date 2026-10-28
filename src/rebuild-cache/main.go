@@ -155,12 +155,21 @@ var commaBelowRegex = regexp.MustCompile("\\{\\\\textcommabelow\\s+([sStT])\\}|\
 var textStyleRegex = regexp.MustCompile("\\\\(?:text(?:sc|bf|it|sf|tt|rm|up|sl|superscript|subscript)|emph)\\{")
 var textSymbolReplacer = strings.NewReplacer(
 	`\textbar{}`, "|", `\textbar`, "|",
+	// literal braces: placeholders (private-use chars) so they survive parsing, restored in restoreBraces
+	`\textbraceleft{}`, "\ue000", `\textbraceleft`, "\ue000",
+	`\textbraceright{}`, "\ue001", `\textbraceright`, "\ue001",
 	`\textquestiondown{}`, "¿", `\textquestiondown`, "¿",
 	`\texthorizontalbar{}`, "―", `\texthorizontalbar`, "―",
 	`\textasciiacute{}`, "´", `\textasciiacute`, "´",
 	`\texteuro{}`, "€", `\texteuro`, "€",
 )
 var commaBelowLetters = map[string]string{"s": "ș", "S": "Ș", "t": "ț", "T": "Ț"}
+
+var braceRestorer = strings.NewReplacer("\ue000", "{", "\ue001", "}")
+
+func restoreBraces(s string) string {
+	return braceRestorer.Replace(s)
+}
 
 func decodeLatexAccents(s string) string {
 	s = commaBelowRegex.ReplaceAllStringFunc(s, func(match string) string {
@@ -266,7 +275,7 @@ func bibtexParse(raw string) []BibtexEntry {
 
 			field := strings.ToLower(strings.TrimSpace(line[:equalSignPos]))
 			value := strings.TrimSpace(line[equalSignPos+1:])
-			value = strings.TrimSpace(strings.NewReplacer("{", "", "}", "").Replace(strings.TrimSuffix(value, ","))) // remove TeX escaping, as in JS
+			value = restoreBraces(strings.TrimSpace(strings.NewReplacer("{", "", "}", "").Replace(strings.TrimSuffix(value, ",")))) // remove TeX escaping, as in JS
 
 			switch field {
 			case "author", "editor":

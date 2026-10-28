@@ -128,6 +128,9 @@ function decodeLatexAccents(str) {
 		.replace(/\{\\textcommabelow\s+([sStT])\}|\\textcommabelow\{([sStT])\}/g, (_m, a, b) => commaBelow[a || b])
 		.replace(/\\(?:text(?:sc|bf|it|sf|tt|rm|up|sl|superscript|subscript)|emph)\{/g, "{") // keep content, drop the style macro
 		.replace(/\\textbar(\{\})?/g, "|")
+		// literal braces: private-use placeholders, restored after field parsing
+		.replace(/\\textbraceleft(\{\})?/g, "\ue000")
+		.replace(/\\textbraceright(\{\})?/g, "\ue001")
 		.replace(/\\textquestiondown(\{\})?/g, "¿")
 		.replace(/\\texthorizontalbar(\{\})?/g, "―")
 		.replace(/\\textasciiacute(\{\})?/g, "´")
@@ -258,6 +261,8 @@ function bibtexParse(rawBibtexStr) {
 			const value = line
 				.slice(equalSignPos + 1)
 				.replace(/{|}|,$/g, "") // remove TeX escaping
+				.replaceAll("\ue000", "{") // restore literal braces
+				.replaceAll("\ue001", "}")
 				.trim();
 
 			switch (field) {
