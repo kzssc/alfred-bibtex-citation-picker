@@ -82,8 +82,14 @@ var bibtexReplacer = strings.NewReplacer(
 	`{\'c}`, "ć",
 	// special chars
 	`{\ldots}`, "…",
+	`\dots{}`, "…",
+	`\dots`, "…",
+	`\pounds{}`, "£",
+	`\pounds `, "£",
+	`\pounds`, "£",
 	`\&`, "&",
 	"``", "\"",
+	"''", "\"",
 	",,", "\"",
 	"`", "'",
 	`\textendash{}`, "—",
@@ -218,7 +224,7 @@ func splitProperties(s string) []string {
 			braceDepth++
 		} else if char == '}' {
 			braceDepth--
-		} else if char == '"' {
+		} else if char == '"' && braceDepth == 0 {
 			inQuotes = !inQuotes
 		} else if char == ',' && braceDepth == 0 && !inQuotes {
 			parts = append(parts, s[start:i])
@@ -232,6 +238,78 @@ func splitProperties(s string) []string {
 }
 
 var yearRegex = regexp.MustCompile(`\d{4}`)
+
+var braceStripper = strings.NewReplacer("{", "", "}", "")
+
+// braceSpanEnd returns the index of the brace closing the one at s[0], or -1
+func braceSpanEnd(s string) int {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// splitNames splits an author/editor field on " and " outside braces, so that
+// corporate names like {Barnes and Noble} survive as one name
+func splitNames(s string) []string {
+	var names []string
+	depth, start := 0, 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+		}
+		if depth == 0 && strings.HasPrefix(s[i:], " and ") {
+			names = append(names, s[start:i])
+			start = i + len(" and ")
+			i += len(" and ") - 1
+		}
+	}
+	return append(names, s[start:])
+}
+
+// organisation-looking words; only fully braced names containing one are kept whole,
+// since Zotero also stores plain personal names in a single braced field ({John Rawls})
+var corporateWordRegex = regexp.MustCompile(`(?i)\b(organi[sz]ation|office|commission|union|council|bank|parliament|association|agency|institute|foundation|nations|department|ministry|government|university|press|consortium|network|group|team|committee|assembly|court|forum|fund|authority|board|cent(?:er|re)|society|times|journal)\b`)
+
+// lastNames returns the display surnames of an author/editor field (outer delimiters already removed)
+func lastNames(raw string) []string {
+	var out []string
+	for _, chunk := range splitNames(raw) {
+		chunk = strings.TrimSpace(chunk)
+		if strings.HasPrefix(chunk, "{") && braceSpanEnd(chunk) == len(chunk)-1 {
+			if inner := restoreBraces(strings.TrimSpace(braceStripper.Replace(chunk))); corporateWordRegex.MatchString(inner) {
+				out = append(out, inner)
+				continue
+			}
+		}
+		for _, name := range strings.Split(restoreBraces(strings.TrimSpace(braceStripper.Replace(chunk))), " and ") {
+			name = strings.TrimSpace(name)
+			var lastname string
+			if strings.Contains(name, ",") {
+				lastname = strings.Split(name, ",")[0]
+			} else if parts := strings.Fields(name); len(parts) > 0 {
+				lastname = parts[len(parts)-1]
+			}
+			if lastname == "" {
+				lastname = "ERROR"
+			}
+			out = append(out, lastname)
+		}
+	}
+	return out
+}
 
 func bibtexParse(raw string) []BibtexEntry {
 	decoded := bibtexDecode(raw)
@@ -279,24 +357,13 @@ func bibtexParse(raw string) []BibtexEntry {
 
 			switch field {
 			case "author", "editor":
-				names := strings.Split(value, " and ")
-				parsedNames := make([]string, len(names))
-				for idx, name := range names {
-					name = strings.TrimSpace(name)
-					var lastname string
-					if strings.Contains(name, ",") {
-						lastname = strings.Split(name, ",")[0]
-					} else {
-						parts := strings.Fields(name)
-						if len(parts) > 0 {
-							lastname = parts[len(parts)-1]
-						}
-					}
-					if lastname == "" {
-						lastname = "ERROR"
-					}
-					parsedNames[idx] = lastname
+				raw := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line[equalSignPos+1:]), ","))
+				if strings.HasPrefix(raw, "{") && braceSpanEnd(raw) == len(raw)-1 {
+					raw = raw[1 : len(raw)-1] // field delimiter, not part of a name
+				} else {
+					raw = strings.Trim(raw, `"`)
 				}
+				parsedNames := lastNames(raw)
 				if field == "author" {
 					entry.Author = parsedNames
 				} else {
@@ -640,6 +707,14 @@ func convertToAlfredItem(entry BibtexEntry, whichLibrary string, alfredBarWidth 
 		},
 	}
 
+	// Shift-preview: prefer the attachment file over the URL
+	quicklook := entry.URL
+	if entry.Attachment != "" {
+		if p := resolveAttachmentPath(entry.Attachment); fileExists(p) {
+			quicklook = (&url.URL{Scheme: "file", Path: p}).String()
+		}
+	}
+
 	return AlfredItem{
 		Title:        libraryIndicator + title,
 		Autocomplete: autocomplete,
@@ -654,7 +729,7 @@ func convertToAlfredItem(entry BibtexEntry, whichLibrary string, alfredBarWidth 
 			Copy:      entry.URL,
 			LargeType: largeTypeInfo,
 		},
-		QuicklookURL: entry.URL,
+		QuicklookURL: quicklook,
 		Mods:         mods,
 	}
 }
@@ -665,7 +740,7 @@ type ObsidianConfig struct {
 	} `json:"vaults"`
 }
 
-func openAttachment(rawPath string) {
+func resolveAttachmentPath(rawPath string) string {
 	path := rawPath
 
 	decoded, err := url.QueryUnescape(path)
@@ -687,6 +762,12 @@ func openAttachment(rawPath string) {
 			path = filepath.Join(home, path[1:])
 		}
 	}
+
+	return path
+}
+
+func openAttachment(rawPath string) {
+	path := resolveAttachmentPath(rawPath)
 
 	if !fileExists(path) && !dirExists(path) {
 		fmt.Printf("File does not exist: %s\n", path)

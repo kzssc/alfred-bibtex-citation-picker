@@ -482,6 +482,20 @@ function run() {
 		// year
 		const displayYear = origyear ? `${year} [${origyear}]` : year;
 
+		// Shift-preview: prefer the attachment file over the URL
+		let quicklookTarget = url;
+		if (attachment) {
+			let path = attachment;
+			try {
+				path = decodeURIComponent(path);
+			} catch (_e) {}
+			path = path
+				.replace(/;\/Users\/.*/, "")
+				.replace(/^file:\/\/(localhost)?/, "")
+				.replace(/^~/, getenv("HOME"));
+			if (fileExists(path)) quicklookTarget = "file://" + path.split("/").map(encodeURIComponent).join("/");
+		}
+
 		return {
 			title: libraryIndicator + shorterTitle,
 			autocomplete: primaryNames[0],
@@ -494,7 +508,7 @@ function run() {
 				copy: url,
 				largetype: largeTypeInfo,
 			},
-			quicklookurl: url,
+			quicklookurl: quicklookTarget,
 			mods: {
 				ctrl: {
 					valid: url !== "",
