@@ -8,3 +8,6 @@ This is a fork of [chrisgrieser/alfred-bibtex-citation-picker](https://github.co
   pasting is about 22x faster, and attachment/note opening is near-instant.
 - **Zotero PDF opening:** PDFs stored inside Zotero (not just local files) can
   now be opened directly via the Zotero URL scheme.
+- **Shift previews the attachment:** Pressing Shift once on an entry shows its
+  attachment file (e.g. the PDF) in Quick Look. Entries without an existing
+  attachment still preview their URL or DOI.
