@@ -34,38 +34,31 @@ fi
 
 #───────────────────────────────────────────────────────────────────────────────
 
-# copy download link for current version, to share it when closing issues
-msg="Available in the Alfred Gallery in 1-2 days, or directly by downloading the latest release here:"
+# copy download link for current version
+msg="Download the latest release here:"
 repo=$(git remote --verbose | head -n1 | sed -E 's/.*github\.com[:/]([^[:space:]]+).*/\1/; s/\.git$//')
 repo_name="${repo##*/}"
-url="https://github.com/$repo/releases/download/$next_version/$repo_name.alfredworkflow"
+asset_name="$repo_name.alfredworkflow"
+url="https://github.com/$repo/releases/download/$next_version/$asset_name"
 echo -n "$msg $url" | pbcopy
 
 #───────────────────────────────────────────────────────────────────────────────
 
-# Submit update at Alfred Gallery
-last_release_commit=$(git log --grep="^release: " -n1 --pretty=format:"%H")
-if [[ -z "$last_release_commit" ]]; then
-	root_commit=$(git rev-list --max-parents=0 HEAD)
-	last_release_commit=$root_commit
-fi
-changelog=$(git log "$last_release_commit"..HEAD --format='- %s' |
-	grep --extended-regexp --invert-match '^- (build|ci|release|chore|test|style)' |
-	jq --raw-input --slurp --null-input --raw-output 'input | @uri') # url-encode
-if [[ -n "$changelog" ]]; then
-	gallery_url="https://github.com/$repo" # github-url also okay for Alfred devs
-	open "https://github.com/alfredapp/gallery-edits/issues/new?template=02_update_workflow.yml&title=Update+Workflow:+$repo&gallery_url=$gallery_url&new_version=$next_version&changelog=$changelog"
-else
-	echo "Only internal changes, thus not submitting update at Alfred Gallery."
-	echo
-fi
+# build release package
+zip --recurse-paths --symlinks "$asset_name" . \
+  --exclude "README.md" ".git*" "Justfile" ".build-and-release.sh" \
+  ".rsync-exclude" ".editorconfig" ".typos.toml" ".markdownlint.*" \
+  "prefs.plist" "*.DS_Store" "src/*" ".rumdl*" ".harper*" \
+  "CITATION.cff" "tokens.json" "*.idx"
 
 #───────────────────────────────────────────────────────────────────────────────
 
-# commit and push
+# commit, tag, and publish to repository
 git add --all &&
 	git commit -m "release: $next_version" &&
 	git pull --no-progress &&
 	git push --no-progress &&
-	git tag "$next_version" && # pushing a tag triggers the github release action
-	git push --no-progress origin --tags
+	git tag "$next_version" &&
+	git push --no-progress origin --tags &&
+	gh release create "$next_version" "$asset_name" --title "$next_version" --generate-notes &&
+	rm -f "$asset_name"
