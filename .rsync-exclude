@@ -13,6 +13,7 @@ prefs.plist
 # docs
 docs/
 LICENSE
+RELEASE_CHECKLIST.md
 # INFO leading `/` -> ignore only the README in the root, not in subfolders
 /README.md
 

@@ -46,7 +46,7 @@ echo -n "$msg $url" | pbcopy
 
 # build release package
 zip --recurse-paths --symlinks "$asset_name" . \
-  --exclude "README.md" ".git*" "Justfile" ".build-and-release.sh" \
+  --exclude "README.md" "RELEASE_CHECKLIST.md" ".git*" "Justfile" ".build-and-release.sh" \
   ".rsync-exclude" ".editorconfig" ".typos.toml" ".markdownlint.*" \
   "prefs.plist" "*.DS_Store" "src/*" ".rumdl*" ".harper*" \
   "CITATION.cff" "tokens.json" "*.idx"
