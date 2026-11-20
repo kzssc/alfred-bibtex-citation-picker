@@ -15,9 +15,9 @@ authors:
   - family-names: Grieser
     given-names: Christopher
     orcid: "https://orcid.org/0000-0002-0767-9496"
-version: "11.9.0"
-date-released: "2023-09-26"
-repository-code: "https://github.com/chrisgrieser/alfred-bibtex-citation-picker"
+version: "1.0"
+date-released: "2026-11-20"
+repository-code: "https://github.com/kzssc/alfred-bibtex-citation-picker"
 keywords:
   - citation picker
   - pandoc
