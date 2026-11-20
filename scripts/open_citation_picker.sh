@@ -2,6 +2,7 @@
 # shellcheck disable=2154
 #───────────────────────────────────────────────────────────────────────────────
 
+search_query="$1"
 buffer="$alfred_workflow_data/buffer.json"
 last_version_file="$alfred_workflow_data/last_version.txt"
 rebuild_pid_file="$alfred_workflow_data/rebuild.pid"
@@ -42,8 +43,9 @@ rebuild_buffer() {
 		find "$literature_note_folder" -type f -name "*.md" | awk -F/ '{print $NF}' | sed 's/\.md$//' > "$lit_list_file"
 	fi
 
+	[[ -f "./scripts/write-citation-picker-buffer" && ! -x "./scripts/write-citation-picker-buffer" ]] && chmod +x "./scripts/write-citation-picker-buffer"
 	if [[ -x "./scripts/write-citation-picker-buffer" ]]; then
-		"./scripts/write-citation-picker-buffer" > "$buffer"
+		"./scripts/write-citation-picker-buffer" > "$buffer.tmp" && mv -f "$buffer.tmp" "$buffer"
 	else
 		# Find node executable
 		local node_bin=""
@@ -56,13 +58,20 @@ rebuild_buffer() {
 		fi
 
 		if [[ -n "$node_bin" ]]; then
-			"$node_bin" "./scripts/write-citation-picker-buffer.js" > "$buffer"
+			"$node_bin" "./scripts/write-citation-picker-buffer.js" > "$buffer.tmp" && mv -f "$buffer.tmp" "$buffer"
 		else
-			osascript -l JavaScript "./scripts/write-citation-picker-buffer.js" > "$buffer"
+			osascript -l JavaScript "./scripts/write-citation-picker-buffer.js" > "$buffer.tmp" && mv -f "$buffer.tmp" "$buffer"
 		fi
 	fi
 	echo -n "$alfred_workflow_version" > "$last_version_file"
 	rm -f "$rebuild_pid_file"
+}
+
+# Filtering happens here rather than in Alfred, so BookOrbit results for the
+# same query can be shown alongside the BibTeX results.
+search_buffer() {
+	[[ -f "./scripts/write-citation-picker-buffer" && ! -x "./scripts/write-citation-picker-buffer" ]] && chmod +x "./scripts/write-citation-picker-buffer"
+	./scripts/write-citation-picker-buffer search "$buffer" "$search_query"
 }
 
 # RELOAD BUFFER if buffer is outdated compared to…
@@ -87,8 +96,8 @@ fi
 
 if [[ "$needs_rebuild" == "true" ]]; then
 	if [[ -f "$buffer" ]]; then
-		# Print the cached version immediately to ensure instant loading speed
-		cat "$buffer"
+		# Search the cached version immediately to ensure instant loading speed
+		search_buffer
 
 		# Rebuild in the background if not already running
 		should_spawn=true
@@ -108,9 +117,9 @@ if [[ "$needs_rebuild" == "true" ]]; then
 	else
 		# No cached buffer exists (e.g. first run). Must run synchronously.
 		rebuild_buffer
-		cat "$buffer"
+		search_buffer
 	fi
 else
-	# Buffer is up to date, output it directly
-	cat "$buffer"
+	# Buffer is up to date, search it directly
+	search_buffer
 fi

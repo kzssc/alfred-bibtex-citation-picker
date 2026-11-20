@@ -926,6 +926,19 @@ func main() {
 			}
 			extractEntry(args[2])
 			return
+		case "search":
+			if len(args) < 3 {
+				fmt.Println("Usage: search <buffer> [query]")
+				return
+			}
+			searchCitationPicker(args[2], optionalArg(args, 3))
+			return
+		case "bookorbit":
+			searchBookOrbit(optionalArg(args, 2))
+			return
+		case "bookorbit-fetch":
+			fetchBookOrbitToCache(optionalArg(args, 2))
+			return
 		}
 	}
 

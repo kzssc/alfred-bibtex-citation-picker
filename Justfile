@@ -27,5 +27,14 @@ open-local-workflow-in-alfred:
     open "alfredpreferences://navigateto/workflows>workflow>{{ workflow_uid }}"
     osascript -e 'tell application id "com.runningwithcrayons.Alfred" to reveal workflow "{{ workflow_uid }}"'
 
+build-binary:
+    #!/usr/bin/env zsh
+    cd src/rebuild-cache
+    GOOS=darwin GOARCH=arm64 go build -trimpath -o /tmp/bin_arm64 .
+    GOOS=darwin GOARCH=amd64 go build -trimpath -o /tmp/bin_amd64 .
+    lipo -create -output ../../scripts/write-citation-picker-buffer /tmp/bin_arm64 /tmp/bin_amd64
+    rm -f /tmp/bin_arm64 /tmp/bin_amd64
+    chmod +x ../../scripts/write-citation-picker-buffer
+
 release:
     ./.build-and-release.sh
